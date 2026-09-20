@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>比赛个人信息填报系统</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #0f1117;
+    color: #e6e8ee;
+    line-height: 1.6;
+  }
+
+  .page {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 16px 80px;
+  }
+
+  /* ---------- 页头 ---------- */
+  .site-header {
+    text-align: center;
+    padding: 34px 12px 26px;
+    border-bottom: 1px solid #232838;
+    margin-bottom: 26px;
+  }
+  .site-header .brand {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: #f0b429;
+    text-shadow: 0 0 24px rgba(240, 180, 41, .28);
+  }
+  .site-header h1 {
+    font-size: 15px;
+    font-weight: 500;
+    color: #8b93a7;
+    margin: 10px 0 0;
+    letter-spacing: 3px;
+  }
+
+  /* ---------- 卡片 ---------- */
+  .card {
+    background: #181b24;
+    border: 1px solid #232838;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 16px;
+    margin: 0 0 16px;
+    padding-left: 10px;
+    border-left: 3px solid #4f8cff;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .hint {
+    font-size: 12px;
+    color: #8b93a7;
+    font-weight: 400;
+    border: none;
+  }
+  .hint b { color: #4f8cff; }
+
+  /* ---------- 比赛信息 ---------- */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .info-item {
+    background: #12151d;
+    border: 1px solid #232838;
+    border-radius: 8px;
+    padding: 10px 13px;
+  }
+  .info-item .k {
+    font-size: 12px;
+    color: #8b93a7;
+    margin-bottom: 2px;
+  }
+  .info-item .v {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6e8ee;
+    word-break: break-all;
+  }
+
+  /* ---------- 表单 ---------- */
+  .form-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .form-row:last-child { margin-bottom: 0; }
+  .form-row > label {
+    font-size: 14px;
+    color: #a8b0c2;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    background: #12151d;
+    border: 1px solid #2c3142;
+    border-radius: 8px;
+    color: #e6e8ee;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: #4f8cff;
+    box-shadow: 0 0 0 3px rgba(79, 140, 255, .15);
+  }
+  input::placeholder { color: #5b6379; }
+  select { cursor: pointer; }
+
+  /* ---------- 车位 ---------- */
+  .slot {
+    border: 1px solid #262c3c;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+    background: #14171f;
+  }
+  .slot-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .slot-title {
+    font-weight: 600;
+    color: #cfd5e3;
+    font-size: 14px;
+  }
+  .slot-title b { color: #4f8cff; }
+  .slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+    gap: 12px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: #8b93a7;
+  }
+
+  /* ---------- 按钮 ---------- */
+  .btn {
+    border: 1px solid #2c3142;
+    background: #1d2230;
+    color: #e6e8ee;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    transition: background .15s, border-color .15s, transform .05s;
+  }
+  .btn:hover { background: #262c3d; border-color: #3a4157; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    background: #4f8cff;
+    border-color: #4f8cff;
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn.primary:hover { background: #3d7bf0; border-color: #3d7bf0; }
+  .btn.tiny { padding: 4px 11px; font-size: 12px; border-radius: 6px; }
+  .btn.danger {
+    background: transparent;
+    border-color: #3a2630;
+    color: #ff7a7a;
+  }
+  .btn.danger:hover { background: #2a1a20; border-color: #5c3340; }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+  /* ---------- 操作区 & 输出 ---------- */
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 22px 0 18px;
+  }
+
+  .panel {
+    background: #181b24;
+    border: 1px solid #232838;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 11px 16px;
+    background: #14171f;
+    border-bottom: 1px solid #232838;
+    font-size: 13px;
+    color: #a8b0c2;
+    letter-spacing: .5px;
+  }
+
+  #mdCode {
+    border: none;
+    border-radius: 0;
+    background: #10131a;
+    min-height: 66px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    resize: vertical;
+    padding: 16px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  #mdCode:focus { box-shadow: none; }
+
+  .md-body { padding: 16px 20px; overflow-x: auto; }
+  .md-body table {
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .md-body th, .md-body td {
+    border: 1px solid #2c3142;
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .md-body th { background: #1d2230; color: #cfd5e3; font-weight: 600; }
+  .md-body td { background: #14171f; }
+
+  /* ---------- 提示条 ---------- */
+  .tpl-tip {
+    font-size: 12px;
+    color: #8b93a7;
+    margin-top: 10px;
+    line-height: 1.9;
+  }
+  .tpl-tip code {
+    background: #232838;
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: #a8b0c2;
+  }
+
+  .foot {
+    text-align: center;
+    font-size: 12px;
+    color: #5b6379;
+    margin-top: 34px;
+    letter-spacing: .5px;
+  }
+  .foot code { color: #8b93a7; }
+
+  /* ---------- 移动端 ---------- */
+  @media (max-width: 560px) {
+    .site-header .brand { font-size: 24px; }
+    .form-row { grid-template-columns: 1fr; gap: 6px; }
+    .actions .btn { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="site-header">
+    <div class="brand">=78D13= matches</div>
+    <h1>比赛个人信息填报系统</h1>
+  </header>
+
+  <!-- 本次比赛信息 -->
+  <section class="card">
+    <h2>本次比赛信息</h2>
+    <div class="info-grid" id="matchInfoGrid"></div>
+  </section>
+
+  <!-- 个人信息 -->
+  <section class="card">
+    <h2>个人信息</h2>
+    <div class="form-row">
+      <label for="nickname">战雷游戏内昵称</label>
+      <input id="nickname" type="text" placeholder="请输入游戏内昵称" autocomplete="off" />
+    </div>
+    <div class="form-row">
+      <label for="team">所属队伍</label>
+      <select id="team"></select>
+    </div>
+    <div class="form-row">
+      <label for="techTree">所用科技树</label>
+      <select id="techTree"></select>
+    </div>
+  </section>
+
+  <!-- 车位 -->
+  <section class="card">
+    <h2>车位信息 <span class="hint">最多 <b id="maxSlotsHint">–</b> 个</span></h2>
+    <div id="slots"></div>
+    <button type="button" class="btn" id="btnAddSlot">＋ 添加车位</button>
+  </section>
+
+  <!-- 操作 -->
+  <div class="actions">
+    <button type="button" class="btn primary" id="btnGen">生成 Markdown 代码</button>
+    <button type="button" class="btn" id="btnPreview">预览 Markdown</button>
+  </div>
+
+  <!-- Markdown 代码 -->
+  <section class="panel" id="codePanel" hidden>
+    <div class="panel-head">
+      <span>Markdown 代码（单行表格行）</span>
+      <button type="button" class="btn tiny" id="btnCopy">复制</button>
+    </div>
+    <textarea id="mdCode" readonly spellcheck="false"></textarea>
+  </section>
+
+  <!-- Markdown 预览 -->
+  <section class="panel" id="previewPanel" hidden>
+    <div class="panel-head"><span>Markdown 预览</span></div>
+    <div class="md-body" id="mdPreview"></div>
+  </section>
+
+  <footer class="foot">
+    配置读取自同目录下的 <code>config.txt</code> · =78D13=
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+   *  常量
+   * ========================================================= */
+
+  const TECH_TREES = ['中系', '苏系', '德系', '英系', '美系', '以系', '意系', '瑞系', '法系', '日系'];
+  const VEHICLE_TYPES = ['固定翼飞机', '直升机', '地面载具', '水面载具'];
+
+  // config.txt 里可识别的键名（大小写 / 空格 / 冒号 / 下划线都会被忽略）
+  const FIELD_DEFS = [
+    { key: 'teams',      aliases: ['队伍', '所属队伍', '队伍列表', '联队', '联队列表', 'teams', 'team'] },
+    { key: 'maxSlots',   aliases: ['最大车位', '最大车位数', '车位数', '最多车位', '车位上限', 'maxslots', 'slots'] },
+    { key: 'mode',       aliases: ['比赛模式', '模式', 'mode'] },
+    { key: 'difficulty', aliases: ['难度', 'difficulty'] },
+    { key: 'condition',  aliases: ['条件', '比赛条件', 'condition'] },
+    { key: 'time',       aliases: ['时间', '比赛时间', 'time'] },
+    { key: 'fuel',       aliases: ['燃料有限', '燃料', 'fuel'] },
+    { key: 'ammo',       aliases: ['弹药有限', '弹药', 'ammo', 'ammunition'] },
+    { key: 'respawn',    aliases: ['重生次数限制', '重生次数', '重生限制', 'respawn'] },
+    { key: 'rounds',     aliases: ['比赛局数', '局数', 'rounds'] }
+  ];
+
+  // 页面「本次比赛信息」的显示顺序
+  const MATCH_FIELDS = [
+    { key: 'mode',       label: '比赛模式' },
+    { key: 'difficulty', label: '难度' },
+    { key: 'condition',  label: '条件' },
+    { key: 'time',       label: '时间' },
+    { key: 'fuel',       label: '燃料有限' },
+    { key: 'ammo',       label: '弹药有限' },
+    { key: 'respawn',    label: '重生次数限制' },
+    { key: 'rounds',     label: '比赛局数' }
+  ];
+
+  const DEFAULT_MAX_SLOTS = 5;
+
+  /* =========================================================
+   *  状态
+   * ========================================================= */
+
+  let maxSlots = DEFAULT_MAX_SLOTS;
+  let configValues = {};
+
+  const slotsEl = document.getElementById('slots');
+
+  /* =========================================================
+   *  通用工具
+   * ========================================================= */
+
+  function normKey(s) {
+    return String(s).toLowerCase().replace(/[\s_\-:：]/g, '');
+  }
+
+  const LOOKUP = {};
+  FIELD_DEFS.forEach(function (f) {
+    f.aliases.forEach(function (a) { LOOKUP[normKey(a)] = f.key; });
+  });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function splitList(v) {
+    return String(v).split(/[,，;；|、]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  /* =========================================================
+   *  config.txt 解析
+   * ========================================================= */
+
+  function findSeparator(line) {
+    const cands = [];
+    ['=', ':', '：'].forEach(function (ch) {
+      const i = line.indexOf(ch);
+      if (i > 0) cands.push({ index: i, len: ch.length });
+    });
+    if (!cands.length) return null;
+    cands.sort(function (a, b) { return a.index - b.index; });
+    return cands[0];
+  }
+
+  function parseConfig(text) {
+    const raw = {};
+
+    text.split(/\r?\n/).forEach(function (line) {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      if (/^(#|\/\/|;)/.test(trimmed)) return;   // 注释行
+
+      const cut = findSeparator(trimmed);
+      if (!cut) return;
+
+      const key = trimmed.slice(0, cut.index).trim();
+      const val = trimmed.slice(cut.index + cut.len).trim();
+      if (!key) return;
+
+      raw[normKey(key)] = val;
+    });
+
+    const cfg = {};
+    Object.keys(raw).forEach(function (nk) {
+      const fk = LOOKUP[nk];
+      if (fk) cfg[fk] = raw[nk];
+    });
+    return cfg;
+  }
+
+  function applyConfig(cfg) {
+    configValues = cfg || {};
+
+    const n = parseInt(configValues.maxSlots, 10);
+    maxSlots = (Number.isFinite(n) && n > 0) ? n : DEFAULT_MAX_SLOTS;
+
+    renderMatchInfo();
+    renderTeams();
+
+    document.getElementById('maxSlotsHint').textContent = maxSlots;
+
+    // 若配置下发的上限比已存在的车位少，裁掉多余车位
+    const exist = slotsEl.querySelectorAll('.slot').length;
+    if (exist > maxSlots) {
+      const all = slotsEl.querySelectorAll('.slot');
+      for (let i = maxSlots; i < all.length; i++) all[i].remove();
+    }
+    renumberSlots();
+  }
+
+  async function loadConfig() {
+    try {
+      const res = await fetch('config.txt', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      applyConfig(parseConfig(text));
+    } catch (err) {
+      console.warn('[=78D13=] 读取 config.txt 失败，已使用默认值：', err);
+      applyConfig({});
+    }
+  }
+
+  /* =========================================================
+   *  渲染：比赛信息 / 队伍
+   * ========================================================= */
+
+  function renderMatchInfo() {
+    const grid = document.getElementById('matchInfoGrid');
+    grid.innerHTML = '';
+
+    MATCH_FIELDS.forEach(function (f) {
+      const val = String(configValues[f.key] || '').trim() || '暂未发布';
+
+      const item = document.createElement('div');
+      item.className = 'info-item';
+
+      const k = document.createElement('div');
+      k.className = 'k';
+      k.textContent = f.label;
+
+      const v = document.createElement('div');
+      v.className = 'v';
+      v.textContent = val;
+
+      item.appendChild(k);
+      item.appendChild(v);
+      grid.appendChild(item);
+    });
+  }
+
+  function renderTeams() {
+    const sel = document.getElementById('team');
+    sel.innerHTML = '';
+
+    const teams = splitList(configValues.teams || '');
+
+    if (!teams.length) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = '（config.txt 未配置队伍）';
+      sel.appendChild(o);
+      return;
+    }
+
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = '请选择队伍';
+    sel.appendChild(ph);
+
+    teams.forEach(function (t) {
+      const o = document.createElement('option');
+      o.value = t;
+      o.textContent = t;
+      sel.appendChild(o);
+    });
+  }
+
+  /* =========================================================
+   *  车位
+   * ========================================================= */
+
+  function makeInput(type, cls, placeholder, attrs) {
+    const inp = document.createElement('input');
+    inp.type = type;
+    inp.className = cls;
+    inp.placeholder = placeholder || '';
+    if (attrs) Object.keys(attrs).forEach(function (k) { inp.setAttribute(k, attrs[k]); });
+    return inp;
+  }
+
+  function makeSelect(options, cls) {
+    const sel = document.createElement('select');
+    sel.className = cls;
+    options.forEach(function (o) {
+      const opt = document.createElement('option');
+      opt.value = o;
+      opt.textContent = o;
+      sel.appendChild(opt);
+    });
+    return sel;
+  }
+
+  function makeField(labelText, control) {
+    const label = document.createElement('label');
+    label.className = 'field';
+
+    const span = document.createElement('span');
+    span.textContent = labelText;
+
+    label.appendChild(span);
+    label.appendChild(control);
+    return label;
+  }
+
+  function createSlot() {
+    const el = document.createElement('div');
+    el.className = 'slot';
+
+    /* 头部：编号 + 删除 */
+    const head = document.createElement('div');
+    head.className = 'slot-head';
+
+    const title = document.createElement('span');
+    title.className = 'slot-title';
+    title.innerHTML = '车位 <b class="slot-index"></b>';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn tiny danger remove-slot';
+    removeBtn.textContent = '删除';
+    removeBtn.addEventListener('click', function () {
+      if (slotsEl.querySelectorAll('.slot').length <= 1) return;
+      el.remove();
+      renumberSlots();
+    });
+
+    head.appendChild(title);
+    head.appendChild(removeBtn);
+    el.appendChild(head);
+
+    /* 主体：四个字段 */
+    const grid = document.createElement('div');
+    grid.className = 'slot-grid';
+
+    grid.appendChild(makeField('载具类型', makeSelect(VEHICLE_TYPES, 'f-type')));
+    grid.appendChild(makeField('载具名称', makeInput('text', 'f-name', '例如 歼-7E')));
+    grid.appendChild(makeField('载具挂载', makeInput('text', 'f-loadout', '例如 r24r*2，r60m*4')));
+    grid.appendChild(makeField('载具权重',
+      makeInput('number', 'f-br', '例如 11.0', { min: '1', max: '20', step: '0.1' })));
+
+    el.appendChild(grid);
+    return el;
+  }
+
+  function renumberSlots() {
+    const els = slotsEl.querySelectorAll('.slot');
+    els.forEach(function (el, i) {
+      el.querySelector('.slot-index').textContent = i + 1;
+      const btn = el.querySelector('.remove-slot');
+      if (btn) btn.disabled = els.length <= 1;
+    });
+  }
+
+  function addSlot() {
+    if (slotsEl.querySelectorAll('.slot').length >= maxSlots) {
+      alert('您已经消耗了本场比赛允许的最大车位！');
+      return;
+    }
+    slotsEl.appendChild(createSlot());
+    renumberSlots();
+  }
+
+  /* =========================================================
+   *  数据收集
+   * ========================================================= */
+
+  function collectData() {
+    const slotEls = slotsEl.querySelectorAll('.slot');
+
+    const slots = Array.prototype.map.call(slotEls, function (el, i) {
+      return {
+        index: i + 1,
+        type: el.querySelector('.f-type').value,
+        name: el.querySelector('.f-name').value.trim(),
+        loadout: el.querySelector('.f-loadout').value.trim(),
+        br: el.querySelector('.f-br').value.trim()
+      };
+    });
+
+    return {
+      nickname: document.getElementById('nickname').value.trim(),
+      team: document.getElementById('team').value,
+      techTree: document.getElementById('techTree').value,
+      slots: slots
+    };
+  }
+  function validateForm(data) {
+  if (!data.nickname) return '请填写战雷游戏内昵称';
+  if (!data.team)     return '请选择所属队伍';
+  if (!data.techTree) return '请选择所用科技树';
+
+  for (let i = 0; i < data.slots.length; i++) {
+    const s = data.slots[i];
+    const n = i + 1;
+    if (!s.name)    return '车位 ' + n + '：请填写载具名称';
+    if (!s.loadout) return '车位 ' + n + '：请填写载具挂载';
+    if (!s.br)      return '车位 ' + n + '：请填写载具权重';
+    // 载具类型有默认选项，不用校验
+  }
+  return null; // 校验通过
+  }
+  /* =========================================================
+   *  Markdown 生成 —— 单行表格行
+   *
+   *  列顺序固定为：
+   *    昵称 | 队伍 | 科技树 | 车位1 | 车位2 | ... | 车位N
+   *  每个车位的单元格内容格式：
+   *    载具类型 / 载具名称 / 载具挂载 / 载具权重
+   *  空车位留空，并按 maxSlots 补齐，保证任意一行粘贴进总表后列数一致。
+   * ========================================================= */
+
+  function mdCell(v) {
+    if (v === undefined || v === null) return '';
+    return String(v).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+  }
+
+  function buildTableRow(d) {
+    const cells = [
+      d.nickname || '',
+      d.team || '',
+      d.techTree || ''
+    ];
+
+    for (let i = 0; i < maxSlots; i++) {
+      const s = d.slots[i];
+      if (!s) { cells.push(''); continue; }
+
+      const parts = [];
+      if (s.type)    parts.push(s.type);
+      if (s.name)    parts.push(s.name);
+      if (s.loadout) parts.push(s.loadout);
+      if (s.br)      parts.push(s.br);
+
+      cells.push(parts.join(' / '));
+    }
+
+    return '| ' + cells.map(mdCell).join(' | ') + ' |';
+  }
+
+  /* =========================================================
+   *  迷你 Markdown 渲染器（仅用于预览单行表格）
+   * ========================================================= */
+
+  function inlineMd(s) {
+    return escapeHtml(s)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`(.+?)`/g, '<code>$1</code>');
+  }
+
+  function splitRow(line) {
+    let s = line.trim();
+    if (s.charAt(0) === '|') s = s.slice(1);
+    if (s.charAt(s.length - 1) === '|') s = s.slice(0, -1);
+    return s.split('|').map(function (c) { return c.trim(); });
+  }
+
+  function isSeparatorRow(cells) {
+    return cells.length > 0 && cells.every(function (c) { return /^:?-{2,}:?$/.test(c); });
+  }
+
+  function renderTable(rows) {
+    const parsed = rows.map(splitRow);
+
+    // 第 2 行是分隔行 => 第 1 行是表头
+    const hasHeader = parsed.length >= 2 && isSeparatorRow(parsed[1]);
+
+    const dataRows = parsed.filter(function (cells) { return !isSeparatorRow(cells); });
+    if (!dataRows.length) return '';
+
+    let html = '<table>';
+    dataRows.forEach(function (cells, idx) {
+      const tag = (idx === 0 && hasHeader) ? 'th' : 'td';
+      html += '<tr>';
+      cells.forEach(function (c) { html += '<' + tag + '>' + inlineMd(c) + '</' + tag + '>'; });
+      html += '</tr>';
+    });
+    return html + '</table>';
+  }
+
+  function mdToHtml(md) {
+    const lines = md.split(/\r?\n/);
+    const out = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const t = lines[i].trim();
+      if (!t) { i++; continue; }
+
+      // 表格（连续的 | 开头行）
+      if (t.charAt(0) === '|') {
+        const rows = [];
+        while (i < lines.length && lines[i].trim().charAt(0) === '|') {
+          rows.push(lines[i].trim());
+          i++;
+        }
+        out.push(renderTable(rows));
+        continue;
+      }
+
+      out.push('<p>' + inlineMd(t) + '</p>');
+      i++;
+    }
+
+    return out.join('\n');
+  }
+
+  /* =========================================================
+   *  按钮行为
+   * ========================================================= */
+
+  function onGenerate() {
+  const data = collectData();
+  const err = validateForm(data);
+  if (err) { alert(err); return; }
+
+  document.getElementById('mdCode').value = buildTableRow(data);
+  const panel = document.getElementById('codePanel');
+  panel.hidden = false;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function onPreview() {
+  const data = collectData();
+  const err = validateForm(data);
+  if (err) { alert(err); return; }
+
+  document.getElementById('mdPreview').innerHTML = mdToHtml(buildTableRow(data));
+  const panel = document.getElementById('previewPanel');
+  panel.hidden = false;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+  async function onCopy() {
+    const ta = document.getElementById('mdCode');
+    const btn = document.getElementById('btnCopy');
+
+    try {
+      await navigator.clipboard.writeText(ta.value);
+    } catch (e) {
+      ta.removeAttribute('readonly');
+      ta.select();
+      try { document.execCommand('copy'); } catch (e2) { /* 忽略 */ }
+      ta.setAttribute('readonly', 'readonly');
+    }
+
+    const old = btn.textContent;
+    btn.textContent = '已复制 ✓';
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  }
+
+  /* =========================================================
+   *  初始化
+   * ========================================================= */
+
+  function init() {
+    // 科技树下拉
+    const techSel = document.getElementById('techTree');
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = '请选择科技树';
+    techSel.appendChild(ph);
+
+    TECH_TREES.forEach(function (t) {
+      const o = document.createElement('option');
+      o.value = t;
+      o.textContent = t;
+      techSel.appendChild(o);
+    });
+
+    // 初始车位（默认一个）
+    slotsEl.appendChild(createSlot());
+    renumberSlots();
+
+    // 按钮绑定
+    document.getElementById('btnAddSlot').addEventListener('click', addSlot);
+    document.getElementById('btnGen').addEventListener('click', onGenerate);
+    document.getElementById('btnPreview').addEventListener('click', onPreview);
+    document.getElementById('btnCopy').addEventListener('click', onCopy);
+
+    // 从同仓库读取 config.txt
+    loadConfig();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+</body>
+</html>
