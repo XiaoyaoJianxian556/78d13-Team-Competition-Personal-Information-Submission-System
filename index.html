@@ -77,6 +77,15 @@
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 10px;
   }
+  .match-selector {
+    margin-bottom: 16px;
+  }
+  .match-selector label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #8b93a7;
+  }
   .info-item {
     background: #12151d;
     border: 1px solid #232838;
@@ -291,6 +300,12 @@
   <!-- 本次比赛信息 -->
   <section class="card">
     <h2>本次比赛信息</h2>
+    <div class="match-selector">
+      <label for="matchSelect">选择比赛</label>
+      <select id="matchSelect" disabled>
+        <option value="">正在读取比赛列表...</option>
+      </select>
+    </div>
     <div class="info-grid" id="matchInfoGrid"></div>
   </section>
 
@@ -340,7 +355,7 @@
   </section>
 
   <footer class="foot">
-    配置读取自同目录下的 <code>config.txt</code> · =78D13=
+    配置读取自 <code>config/available_matches</code> · =78D13=
   </footer>
 
 </div>
@@ -356,7 +371,7 @@
   const TECH_TREES = ['中系', '苏系', '德系', '英系', '美系', '以系', '意系', '瑞系', '法系', '日系'];
   const VEHICLE_TYPES = ['固定翼飞机', '直升机', '地面载具', '水面载具'];
 
-  // config.txt 里可识别的键名（大小写 / 空格 / 冒号 / 下划线都会被忽略）
+  // 比赛 JSON 里可识别的键名（大小写 / 空格 / 冒号 / 下划线都会被忽略）
   const FIELD_DEFS = [
     { key: 'teams',      aliases: ['队伍', '所属队伍', '队伍列表', '联队', '联队列表', 'teams', 'team'] },
     { key: 'maxSlots',   aliases: ['最大车位', '最大车位数', '车位数', '最多车位', '车位上限', 'maxslots', 'slots'] },
@@ -417,7 +432,7 @@
   }
 
   /* =========================================================
-   *  config.txt 解析
+  *  比赛 JSON 解析
    * ========================================================= */
 
   function findSeparator(line) {
@@ -431,28 +446,12 @@
     return cands[0];
   }
 
-  function parseConfig(text) {
-    const raw = {};
-
-    text.split(/\r?\n/).forEach(function (line) {
-      const trimmed = line.trim();
-      if (!trimmed) return;
-      if (/^(#|\/\/|;)/.test(trimmed)) return;   // 注释行
-
-      const cut = findSeparator(trimmed);
-      if (!cut) return;
-
-      const key = trimmed.slice(0, cut.index).trim();
-      const val = trimmed.slice(cut.index + cut.len).trim();
-      if (!key) return;
-
-      raw[normKey(key)] = val;
-    });
-
+  function parseConfig(data) {
+    const raw = data && typeof data === 'object' ? data : {};
     const cfg = {};
     Object.keys(raw).forEach(function (nk) {
-      const fk = LOOKUP[nk];
-      if (fk) cfg[fk] = raw[nk];
+      const fk = LOOKUP[normKey(nk)];
+      if (fk) cfg[fk] = Array.isArray(raw[nk]) ? raw[nk].join(', ') : String(raw[nk]);
     });
     return cfg;
   }
@@ -477,14 +476,59 @@
     renumberSlots();
   }
 
-  async function loadConfig() {
+  function setMatchOptions(matches) {
+    const sel = document.getElementById('matchSelect');
+    sel.innerHTML = '';
+
+    matches.forEach(function (match, index) {
+      const option = document.createElement('option');
+      option.value = match.file;
+      option.textContent = match.name || match.id || match.file;
+      if (index === 0) option.selected = true;
+      sel.appendChild(option);
+    });
+
+    sel.disabled = !matches.length;
+  }
+
+  async function loadMatch(file) {
     try {
-      const res = await fetch('config.txt', { cache: 'no-store' });
+      const res = await fetch('config/available_matches/' + encodeURIComponent(file), { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const text = await res.text();
-      applyConfig(parseConfig(text));
+      applyConfig(parseConfig(await res.json()));
     } catch (err) {
-      console.warn('[=78D13=] 读取 config.txt 失败，已使用默认值：', err);
+      console.warn('[=78D13=] 读取比赛 JSON 失败，已使用默认值：', err);
+      applyConfig({});
+    }
+  }
+
+  async function loadConfig() {
+    const sel = document.getElementById('matchSelect');
+    try {
+      const res = await fetch('config/available_matches/index.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const matches = Array.isArray(data) ? data : data.matches;
+      if (!Array.isArray(matches) || !matches.length) throw new Error('比赛列表为空');
+
+      const normalized = matches.map(function (match) {
+        if (typeof match === 'string') {
+          return { id: match, name: match, file: match.endsWith('.json') ? match : match + '.json' };
+        }
+        return {
+          id: match.id || match.file,
+          name: match.name || match.title || match.id || match.file,
+          file: match.file || ((match.id || '') + '.json')
+        };
+      });
+
+      setMatchOptions(normalized);
+      sel.addEventListener('change', function () { loadMatch(sel.value); });
+      await loadMatch(normalized[0].file);
+    } catch (err) {
+      console.warn('[=78D13=] 读取比赛列表失败：', err);
+      sel.innerHTML = '<option value="">暂无可用比赛</option>';
+      sel.disabled = true;
       applyConfig({});
     }
   }
@@ -856,7 +900,7 @@ function onPreview() {
     document.getElementById('btnPreview').addEventListener('click', onPreview);
     document.getElementById('btnCopy').addEventListener('click', onCopy);
 
-    // 从同仓库读取 config.txt
+    // 从 config/available_matches 读取比赛列表和比赛配置
     loadConfig();
   }
 
