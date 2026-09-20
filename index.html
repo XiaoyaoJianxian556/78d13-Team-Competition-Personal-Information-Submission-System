@@ -488,11 +488,19 @@
     }).filter(function (member) { return member.id && member.name; });
   }
 
+  function decodeCsv(buffer) {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    } catch (err) {
+      return new TextDecoder('gb18030').decode(buffer);
+    }
+  }
+
   async function loadMembers() {
     try {
       const res = await fetch('config/teammate_info/members.csv', { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      members = parseMembersCsv(await res.text());
+      members = parseMembersCsv(decodeCsv(await res.arrayBuffer()));
     } catch (err) {
       console.warn('[=78D13=] 读取 members.csv 失败：', err);
       members = [];
