@@ -14,3 +14,5 @@
 页面从 `config/available_matches/index.json` 读取可选比赛，再读取其中 `file` 指向的比赛 JSON。新增比赛时，在该目录添加配置文件，并在 `index.json` 中加入对应的 `id`、`name` 和 `file`。
 
 比赛配置支持 `teams`、`maxSlots`、`mode`、`difficulty`、`condition`、`time`、`fuel`、`ammo`、`respawn` 和 `rounds` 字段。
+
+载具配置文件暂不录入数据。页面支持按载具类型和等级组织的 JSON，例如：`{"固定翼飞机":{"VIII":[{"name":"示例载具","br":12.0}]}}`；其中 `name` 为载具名称，`br` 为载具权重。

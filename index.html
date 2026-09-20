@@ -117,6 +117,16 @@
     font-size: 14px;
     color: #a8b0c2;
   }
+  .input-with-action {
+    display: flex;
+    gap: 8px;
+  }
+  .input-with-action input { flex: 1; }
+  .search-status {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #8b93a7;
+  }
 
   input, select, textarea {
     width: 100%;
@@ -168,6 +178,11 @@
     gap: 6px;
     font-size: 13px;
     color: #8b93a7;
+  }
+  .vehicle-name-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   /* ---------- 按钮 ---------- */
@@ -226,21 +241,6 @@
     color: #a8b0c2;
     letter-spacing: .5px;
   }
-
-  #mdCode {
-    border: none;
-    border-radius: 0;
-    background: #10131a;
-    min-height: 66px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 13px;
-    line-height: 1.7;
-    resize: vertical;
-    padding: 16px;
-    white-space: pre;
-    overflow-x: auto;
-  }
-  #mdCode:focus { box-shadow: none; }
 
   .md-body { padding: 16px 20px; overflow-x: auto; }
   .md-body table {
@@ -314,11 +314,29 @@
     <h2>个人信息</h2>
     <div class="form-row">
       <label for="nickname">战雷游戏内昵称</label>
-      <input id="nickname" type="text" placeholder="请输入游戏内昵称" autocomplete="off" />
+      <div>
+        <div class="input-with-action">
+          <input id="nickname" type="text" placeholder="请输入游戏内昵称" autocomplete="off" />
+          <button type="button" class="btn" id="btnSearchId">搜索 ID</button>
+        </div>
+        <div class="search-status" id="searchStatus" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="gaijinId">玩家 ID</label>
+      <input id="gaijinId" type="text" placeholder="搜索不到时请手动输入" inputmode="numeric" autocomplete="off" />
     </div>
     <div class="form-row">
       <label for="team">所属队伍</label>
       <select id="team"></select>
+    </div>
+    <div class="form-row">
+      <label for="identity">身份</label>
+      <select id="identity">
+        <option value="">请选择身份</option>
+        <option value="队长">队长</option>
+        <option value="队员">队员</option>
+      </select>
     </div>
     <div class="form-row">
       <label for="techTree">所用科技树</label>
@@ -335,24 +353,8 @@
 
   <!-- 操作 -->
   <div class="actions">
-    <button type="button" class="btn primary" id="btnGen">生成 Markdown 代码</button>
-    <button type="button" class="btn" id="btnPreview">预览 Markdown</button>
+    <button type="button" class="btn" id="btnDownload">下载 JSON 文件</button>
   </div>
-
-  <!-- Markdown 代码 -->
-  <section class="panel" id="codePanel" hidden>
-    <div class="panel-head">
-      <span>Markdown 代码（单行表格行）</span>
-      <button type="button" class="btn tiny" id="btnCopy">复制</button>
-    </div>
-    <textarea id="mdCode" readonly spellcheck="false"></textarea>
-  </section>
-
-  <!-- Markdown 预览 -->
-  <section class="panel" id="previewPanel" hidden>
-    <div class="panel-head"><span>Markdown 预览</span></div>
-    <div class="md-body" id="mdPreview"></div>
-  </section>
 
   <footer class="foot">
     配置读取自 <code>config/available_matches</code> · =78D13=
@@ -370,6 +372,19 @@
 
   const TECH_TREES = ['中系', '苏系', '德系', '英系', '美系', '以系', '意系', '瑞系', '法系', '日系'];
   const VEHICLE_TYPES = ['固定翼飞机', '直升机', '地面载具', '水面载具'];
+  const VEHICLE_LEVELS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+  const VEHICLE_FILES = {
+    '中系': 'china.json',
+    '苏系': 'russia.json',
+    '德系': 'german.json',
+    '英系': 'british.json',
+    '美系': 'usa.json',
+    '以系': 'israel.json',
+    '意系': 'italy.json',
+    '瑞系': 'sweden.json',
+    '法系': 'france.json',
+    '日系': 'japan.json'
+  };
 
   // 比赛 JSON 里可识别的键名（大小写 / 空格 / 冒号 / 下划线都会被忽略）
   const FIELD_DEFS = [
@@ -405,6 +420,9 @@
 
   let maxSlots = DEFAULT_MAX_SLOTS;
   let configValues = {};
+  let members = [];
+  let vehicleCatalog = [];
+  let vehicleLoadToken = 0;
 
   const slotsEl = document.getElementById('slots');
 
@@ -428,7 +446,85 @@
   }
 
   function splitList(v) {
+    if (Array.isArray(v)) return v.map(function (s) { return String(s).trim(); }).filter(Boolean);
     return String(v).split(/[,，;；|、]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function parseCsvLine(line) {
+    const cells = [];
+    let cell = '';
+    let quoted = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"' && quoted && line[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') {
+        quoted = !quoted;
+      } else if (ch === ',' && !quoted) {
+        cells.push(cell.trim());
+        cell = '';
+      } else {
+        cell += ch;
+      }
+    }
+    cells.push(cell.trim());
+    return cells;
+  }
+
+  function parseMembersCsv(text) {
+    const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(function (line) { return line.trim(); });
+    if (!lines.length) return [];
+
+    const headers = parseCsvLine(lines[0]);
+    const idIndex = headers.indexOf('gaijin_id');
+    const nameIndex = headers.indexOf('name');
+    if (idIndex < 0 || nameIndex < 0) return [];
+
+    return lines.slice(1).map(function (line) {
+      const cells = parseCsvLine(line);
+      return { id: cells[idIndex] || '', name: cells[nameIndex] || '' };
+    }).filter(function (member) { return member.id && member.name; });
+  }
+
+  async function loadMembers() {
+    try {
+      const res = await fetch('config/teammate_info/members.csv', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      members = parseMembersCsv(await res.text());
+    } catch (err) {
+      console.warn('[=78D13=] 读取 members.csv 失败：', err);
+      members = [];
+    }
+  }
+
+  function searchPlayerId() {
+    const nickname = document.getElementById('nickname').value.trim();
+    const idInput = document.getElementById('gaijinId');
+    const status = document.getElementById('searchStatus');
+
+    if (!nickname) {
+      status.textContent = '请先填写游戏内昵称';
+      idInput.focus();
+      return;
+    }
+
+    const normalizeNickname = function (value) {
+      return String(value).toLowerCase().replace(/[\s_]+/g, '');
+    };
+    const matched = members.find(function (member) {
+      return normalizeNickname(member.name) === normalizeNickname(nickname);
+    });
+    if (matched) {
+      idInput.value = matched.id;
+      status.textContent = '已找到玩家 ID';
+      return;
+    }
+
+    idInput.value = '';
+    status.textContent = '未找到该昵称，请自行输入玩家 ID';
+    idInput.focus();
   }
 
   /* =========================================================
@@ -570,7 +666,7 @@
     if (!teams.length) {
       const o = document.createElement('option');
       o.value = '';
-      o.textContent = '（config.txt 未配置队伍）';
+      o.textContent = '（当前比赛未配置队伍）';
       sel.appendChild(o);
       return;
     }
@@ -625,6 +721,115 @@
     return label;
   }
 
+  function normalizeVehicleEntry(entry, type, level) {
+    if (typeof entry === 'string' || typeof entry === 'number') {
+      return { type: type, level: level, name: String(entry), br: '' };
+    }
+    if (!entry || typeof entry !== 'object') return null;
+
+    const name = entry.name || entry.title || entry.vehicle || entry.名称 || entry.载具名称;
+    if (!name) return null;
+    return {
+      type: entry.type || entry.category || entry.vehicleType || entry.类型 || entry.载具类型 || type,
+      level: entry.level || entry.rank || entry.tier || entry.等级 || entry.载具等级 || level,
+      name: String(name)
+    };
+  }
+
+  function normalizeVehicleData(data) {
+    const result = [];
+    const add = function (entry, type, level) {
+      const normalized = normalizeVehicleEntry(entry, type, level);
+      if (normalized) result.push(normalized);
+    };
+
+    const source = data && data.vehicles ? data.vehicles : data;
+    if (Array.isArray(source)) {
+      source.forEach(function (entry) { add(entry, '', ''); });
+      return result;
+    }
+    if (!source || typeof source !== 'object') return result;
+
+    Object.keys(source).forEach(function (type) {
+      const byLevel = source[type];
+      if (Array.isArray(byLevel)) {
+        byLevel.forEach(function (entry) { add(entry, type, ''); });
+        return;
+      }
+      if (!byLevel || typeof byLevel !== 'object') return;
+      Object.keys(byLevel).forEach(function (level) {
+        const entries = Array.isArray(byLevel[level]) ? byLevel[level] : [byLevel[level]];
+        entries.forEach(function (entry) { add(entry, type, level); });
+      });
+    });
+    return result;
+  }
+
+  function getVehicleEntries(type, level) {
+    return vehicleCatalog.filter(function (entry) {
+      return (!entry.type || entry.type === type) && (!entry.level || String(entry.level) === level);
+    });
+  }
+
+  function setSelectOptions(select, options, placeholder) {
+    select.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = placeholder;
+    select.appendChild(ph);
+    options.forEach(function (value) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    });
+  }
+
+  function updateSlotVehicleControls(slot) {
+    const type = slot.querySelector('.f-type').value;
+    const level = slot.querySelector('.f-level').value;
+    const nameInput = slot.querySelector('.f-name');
+    const nameSelect = slot.querySelector('.f-name-select');
+    const loadoutField = slot.querySelector('.f-loadout-field');
+    const currentName = nameInput.value;
+    const entries = getVehicleEntries(type, level);
+    const names = entries.map(function (entry) { return entry.name; });
+
+    setSelectOptions(nameSelect, names, names.length ? '请选择载具名称' : '暂无载具数据');
+    nameSelect.hidden = !names.length;
+    nameInput.hidden = names.length > 0;
+    if (names.length && names.indexOf(currentName) >= 0) nameSelect.value = currentName;
+    if (names.length && nameSelect.value) nameInput.value = nameSelect.value;
+
+    loadoutField.hidden = type === '地面载具' || type === '水面载具';
+    if (loadoutField.hidden) slot.querySelector('.f-loadout').value = '';
+  }
+
+  function refreshAllSlotVehicleControls() {
+    slotsEl.querySelectorAll('.slot').forEach(updateSlotVehicleControls);
+  }
+
+  async function loadVehicleCatalog(techTree) {
+    const token = ++vehicleLoadToken;
+    vehicleCatalog = [];
+    refreshAllSlotVehicleControls();
+    if (!techTree || !VEHICLE_FILES[techTree]) return;
+
+    try {
+      const res = await fetch('config/vehicle_info/' + VEHICLE_FILES[techTree], { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      if (!text.trim()) return;
+      const data = JSON.parse(text);
+      if (token !== vehicleLoadToken) return;
+      vehicleCatalog = normalizeVehicleData(data);
+      refreshAllSlotVehicleControls();
+    } catch (err) {
+      if (token !== vehicleLoadToken) return;
+      console.warn('[=78D13=] 读取载具配置失败，载具名称可手动填写：', err);
+    }
+  }
+
   function createSlot() {
     const el = document.createElement('div');
     el.className = 'slot';
@@ -651,17 +856,38 @@
     head.appendChild(removeBtn);
     el.appendChild(head);
 
-    /* 主体：四个字段 */
+    /* 主体：类型、等级、名称、挂载和权重 */
     const grid = document.createElement('div');
     grid.className = 'slot-grid';
 
-    grid.appendChild(makeField('载具类型', makeSelect(VEHICLE_TYPES, 'f-type')));
-    grid.appendChild(makeField('载具名称', makeInput('text', 'f-name', '例如 歼-7E')));
-    grid.appendChild(makeField('载具挂载', makeInput('text', 'f-loadout', '例如 r24r*2，r60m*4')));
-    grid.appendChild(makeField('载具权重',
-      makeInput('number', 'f-br', '例如 11.0', { min: '1', max: '20', step: '0.1' })));
+    const typeSelect = makeSelect(VEHICLE_TYPES, 'f-type');
+    const levelSelect = makeSelect(VEHICLE_LEVELS, 'f-level');
+    const nameInput = makeInput('text', 'f-name', '暂无数据时手动填写');
+    const nameSelect = makeSelect([], 'f-name-select');
+    const nameControls = document.createElement('div');
+    nameControls.className = 'vehicle-name-controls';
+    nameControls.appendChild(nameSelect);
+    nameControls.appendChild(nameInput);
+
+    const loadoutInput = makeInput('text', 'f-loadout', '例如 r24r*2，r60m*4');
+    const loadoutField = makeField('载具挂载', loadoutInput);
+    loadoutField.classList.add('f-loadout-field');
+
+    grid.appendChild(makeField('载具类型', typeSelect));
+    grid.appendChild(makeField('载具等级', levelSelect));
+    grid.appendChild(makeField('载具名称', nameControls));
+    grid.appendChild(loadoutField);
+
+    typeSelect.addEventListener('change', function () { updateSlotVehicleControls(el); });
+    levelSelect.addEventListener('change', function () { updateSlotVehicleControls(el); });
+    nameSelect.addEventListener('change', function () {
+      nameInput.value = nameSelect.value;
+      updateSlotVehicleControls(el);
+    });
+    nameInput.addEventListener('input', function () { updateSlotVehicleControls(el); });
 
     el.appendChild(grid);
+    updateSlotVehicleControls(el);
     return el;
   }
 
@@ -694,182 +920,64 @@
       return {
         index: i + 1,
         type: el.querySelector('.f-type').value,
+        level: el.querySelector('.f-level').value,
         name: el.querySelector('.f-name').value.trim(),
-        loadout: el.querySelector('.f-loadout').value.trim(),
-        br: el.querySelector('.f-br').value.trim()
+        loadout: el.querySelector('.f-loadout').value.trim()
       };
     });
 
     return {
       nickname: document.getElementById('nickname').value.trim(),
+      gaijinId: document.getElementById('gaijinId').value.trim(),
       team: document.getElementById('team').value,
+      identity: document.getElementById('identity').value,
       techTree: document.getElementById('techTree').value,
       slots: slots
     };
   }
   function validateForm(data) {
   if (!data.nickname) return '请填写战雷游戏内昵称';
+  if (!data.gaijinId)  return '请搜索或填写玩家 ID';
   if (!data.team)     return '请选择所属队伍';
+  if (!data.identity) return '请选择身份';
   if (!data.techTree) return '请选择所用科技树';
 
   for (let i = 0; i < data.slots.length; i++) {
     const s = data.slots[i];
     const n = i + 1;
-    if (!s.name)    return '车位 ' + n + '：请填写载具名称';
-    if (!s.loadout) return '车位 ' + n + '：请填写载具挂载';
-    if (!s.br)      return '车位 ' + n + '：请填写载具权重';
-    // 载具类型有默认选项，不用校验
+    if (!s.level) return '车位 ' + n + '：请选择载具等级';
+    if (!s.name)  return '车位 ' + n + '：请填写或选择载具名称';
+    if (s.type !== '地面载具' && s.type !== '水面载具' && !s.loadout) {
+      return '车位 ' + n + '：请填写载具挂载';
+    }
   }
   return null; // 校验通过
   }
   /* =========================================================
-   *  Markdown 生成 —— 单行表格行
-   *
-   *  列顺序固定为：
-   *    昵称 | 队伍 | 科技树 | 车位1 | 车位2 | ... | 车位N
-   *  每个车位的单元格内容格式：
-   *    载具类型 / 载具名称 / 载具挂载 / 载具权重
-   *  空车位留空，并按 maxSlots 补齐，保证任意一行粘贴进总表后列数一致。
+   *  JSON 生成
    * ========================================================= */
 
-  function mdCell(v) {
-    if (v === undefined || v === null) return '';
-    return String(v).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
-  }
-
-  function buildTableRow(d) {
-    const cells = [
-      d.nickname || '',
-      d.team || '',
-      d.techTree || ''
-    ];
-
-    for (let i = 0; i < maxSlots; i++) {
-      const s = d.slots[i];
-      if (!s) { cells.push(''); continue; }
-
-      const parts = [];
-      if (s.type)    parts.push(s.type);
-      if (s.name)    parts.push(s.name);
-      if (s.loadout) parts.push(s.loadout);
-      if (s.br)      parts.push(s.br);
-
-      cells.push(parts.join(' / '));
-    }
-
-    return '| ' + cells.map(mdCell).join(' | ') + ' |';
-  }
-
-  /* =========================================================
-   *  迷你 Markdown 渲染器（仅用于预览单行表格）
-   * ========================================================= */
-
-  function inlineMd(s) {
-    return escapeHtml(s)
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/`(.+?)`/g, '<code>$1</code>');
-  }
-
-  function splitRow(line) {
-    let s = line.trim();
-    if (s.charAt(0) === '|') s = s.slice(1);
-    if (s.charAt(s.length - 1) === '|') s = s.slice(0, -1);
-    return s.split('|').map(function (c) { return c.trim(); });
-  }
-
-  function isSeparatorRow(cells) {
-    return cells.length > 0 && cells.every(function (c) { return /^:?-{2,}:?$/.test(c); });
-  }
-
-  function renderTable(rows) {
-    const parsed = rows.map(splitRow);
-
-    // 第 2 行是分隔行 => 第 1 行是表头
-    const hasHeader = parsed.length >= 2 && isSeparatorRow(parsed[1]);
-
-    const dataRows = parsed.filter(function (cells) { return !isSeparatorRow(cells); });
-    if (!dataRows.length) return '';
-
-    let html = '<table>';
-    dataRows.forEach(function (cells, idx) {
-      const tag = (idx === 0 && hasHeader) ? 'th' : 'td';
-      html += '<tr>';
-      cells.forEach(function (c) { html += '<' + tag + '>' + inlineMd(c) + '</' + tag + '>'; });
-      html += '</tr>';
-    });
-    return html + '</table>';
-  }
-
-  function mdToHtml(md) {
-    const lines = md.split(/\r?\n/);
-    const out = [];
-    let i = 0;
-
-    while (i < lines.length) {
-      const t = lines[i].trim();
-      if (!t) { i++; continue; }
-
-      // 表格（连续的 | 开头行）
-      if (t.charAt(0) === '|') {
-        const rows = [];
-        while (i < lines.length && lines[i].trim().charAt(0) === '|') {
-          rows.push(lines[i].trim());
-          i++;
-        }
-        out.push(renderTable(rows));
-        continue;
-      }
-
-      out.push('<p>' + inlineMd(t) + '</p>');
-      i++;
-    }
-
-    return out.join('\n');
+  function buildJson(data) {
+    return JSON.stringify(data, null, 2);
   }
 
   /* =========================================================
    *  按钮行为
    * ========================================================= */
 
-  function onGenerate() {
+function onDownload() {
   const data = collectData();
   const err = validateForm(data);
   if (err) { alert(err); return; }
 
-  document.getElementById('mdCode').value = buildTableRow(data);
-  const panel = document.getElementById('codePanel');
-  panel.hidden = false;
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const blob = new Blob([buildJson(data)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = (data.nickname || 'player-info') + '.json';
+  link.click();
+  URL.revokeObjectURL(url);
 }
-
-function onPreview() {
-  const data = collectData();
-  const err = validateForm(data);
-  if (err) { alert(err); return; }
-
-  document.getElementById('mdPreview').innerHTML = mdToHtml(buildTableRow(data));
-  const panel = document.getElementById('previewPanel');
-  panel.hidden = false;
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-  async function onCopy() {
-    const ta = document.getElementById('mdCode');
-    const btn = document.getElementById('btnCopy');
-
-    try {
-      await navigator.clipboard.writeText(ta.value);
-    } catch (e) {
-      ta.removeAttribute('readonly');
-      ta.select();
-      try { document.execCommand('copy'); } catch (e2) { /* 忽略 */ }
-      ta.setAttribute('readonly', 'readonly');
-    }
-
-    const old = btn.textContent;
-    btn.textContent = '已复制 ✓';
-    setTimeout(function () { btn.textContent = old; }, 1500);
-  }
 
   /* =========================================================
    *  初始化
@@ -889,6 +997,7 @@ function onPreview() {
       o.textContent = t;
       techSel.appendChild(o);
     });
+    techSel.addEventListener('change', function () { loadVehicleCatalog(techSel.value); });
 
     // 初始车位（默认一个）
     slotsEl.appendChild(createSlot());
@@ -896,12 +1005,13 @@ function onPreview() {
 
     // 按钮绑定
     document.getElementById('btnAddSlot').addEventListener('click', addSlot);
-    document.getElementById('btnGen').addEventListener('click', onGenerate);
-    document.getElementById('btnPreview').addEventListener('click', onPreview);
-    document.getElementById('btnCopy').addEventListener('click', onCopy);
+    document.getElementById('btnSearchId').addEventListener('click', searchPlayerId);
+    document.getElementById('btnDownload').addEventListener('click', onDownload);
 
     // 从 config/available_matches 读取比赛列表和比赛配置
     loadConfig();
+    loadMembers();
+    loadVehicleCatalog(techSel.value);
   }
 
   if (document.readyState === 'loading') {
