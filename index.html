@@ -353,7 +353,7 @@
 
   <!-- 操作 -->
   <div class="actions">
-    <button type="button" class="btn" id="btnDownload">下载 JSON 文件</button>
+    <button type="button" class="btn primary" id="btnDownload">复制 Markdown</button>
   </div>
 
   <footer class="foot">
@@ -973,18 +973,43 @@
    *  按钮行为
    * ========================================================= */
 
-function onDownload() {
+async function onDownload() {
   const data = collectData();
   const err = validateForm(data);
   if (err) { alert(err); return; }
 
-  const blob = new Blob([buildJson(data)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = (data.nickname || 'player-info') + '.json';
-  link.click();
-  URL.revokeObjectURL(url);
+  const md = buildMarkdown(data);
+  const btn = document.getElementById('btnDownload');
+  const oldText = btn.textContent;
+
+  // 优先用 Clipboard API
+  let ok = false;
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(md);
+      ok = true;
+    } catch (e) { ok = false; }
+  }
+
+  // 回退：临时 textarea + execCommand
+  if (!ok) {
+    const ta = document.createElement('textarea');
+    ta.value = md;
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+  }
+
+  if (ok) {
+    btn.textContent = '已复制，请自行发给裁判';
+    setTimeout(function () { btn.textContent = oldText; }, 2000);
+  } else {
+    // 极端情况：弹窗让用户手动复制
+    prompt('自动复制失败，请手动复制以下内容：', md);
+  }
 }
 
   /* =========================================================
