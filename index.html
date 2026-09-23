@@ -809,7 +809,9 @@
     if (names.length && names.indexOf(currentName) >= 0) nameSelect.value = currentName;
     if (names.length && nameSelect.value) nameInput.value = nameSelect.value;
 
-    loadoutField.hidden = type === '地面载具' || type === '水面载具';
+    const noLoadout = type === '地面载具' || type === '水面载具';
+    loadoutField.hidden = noLoadout;
+    loadoutField.style.display = noLoadout ? 'none' : '';
     if (loadoutField.hidden) slot.querySelector('.f-loadout').value = '';
   }
 
