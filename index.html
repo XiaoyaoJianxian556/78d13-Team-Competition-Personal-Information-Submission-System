@@ -925,13 +925,18 @@
     const slotEls = slotsEl.querySelectorAll('.slot');
 
     const slots = Array.prototype.map.call(slotEls, function (el, i) {
-      return {
+      const type = el.querySelector('.f-type').value;
+      const slot = {
         index: i + 1,
-        type: el.querySelector('.f-type').value,
+        type: type,
         level: el.querySelector('.f-level').value,
-        name: el.querySelector('.f-name').value.trim(),
-        loadout: el.querySelector('.f-loadout').value.trim()
+        name: el.querySelector('.f-name').value.trim()
       };
+
+      if (type !== '地面载具' && type !== '水面载具') {
+        slot.loadout = el.querySelector('.f-loadout').value.trim();
+      }
+      return slot;
     });
 
     return {
