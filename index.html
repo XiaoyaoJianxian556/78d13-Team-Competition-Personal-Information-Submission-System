@@ -63,6 +63,7 @@
     gap: 10px;
     flex-wrap: wrap;
   }
+  .card h2.alt { border-left-color: #f0b429; color: #f0b429; }
   .hint {
     font-size: 12px;
     color: #8b93a7;
@@ -70,6 +71,55 @@
     border: none;
   }
   .hint b { color: #4f8cff; }
+
+  /* ---------- 提交给裁判的卡片：金色高亮 ---------- */
+  .submit-card {
+    border: 2px solid #f0b429;
+    background: linear-gradient(180deg, #1d1810 0%, #181b24 60%);
+    box-shadow: 0 0 30px rgba(240, 180, 41, .15);
+  }
+  .submit-warn {
+    background: rgba(240, 180, 41, .1);
+    border-left: 3px solid #f0b429;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #f0d88a;
+    line-height: 1.8;
+  }
+  .submit-warn strong { color: #f0b429; }
+  .submit-warn code {
+    background: #3a2e12;
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: #f0d88a;
+    font-size: 12px;
+  }
+
+  .submit-btn {
+    background: linear-gradient(135deg, #f0b429, #ff9500);
+    border: 2px solid #f0b429;
+    color: #1a1400;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 14px 28px;
+    letter-spacing: 1px;
+    box-shadow: 0 0 20px rgba(240, 180, 41, .5);
+    animation: pulse-gold 2.2s ease-in-out infinite;
+  }
+  .submit-btn:hover {
+    background: linear-gradient(135deg, #ffc94a, #ffa520);
+    border-color: #ffc94a;
+    box-shadow: 0 0 36px rgba(240, 180, 41, .9);
+    animation: none;
+  }
+  .submit-btn:active { transform: translateY(1px); }
+
+  @keyframes pulse-gold {
+    0%, 100% { box-shadow: 0 0 20px rgba(240, 180, 41, .45); }
+    50%      { box-shadow: 0 0 36px rgba(240, 180, 41, .95); }
+  }
 
   /* ---------- 比赛信息 ---------- */
   .info-grid {
@@ -240,23 +290,33 @@
     font-size: 13px;
     color: #a8b0c2;
     letter-spacing: .5px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .btn-inline {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
-  .md-body { padding: 16px 20px; overflow-x: auto; }
-  .md-body table {
-    border-collapse: collapse;
+  #mdOutput {
+    width: 100%;
+    min-height: 100px;
+    border: none;
+    border-radius: 0;
+    background: #10131a;
+    color: #f0d88a;
+    padding: 14px 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    white-space: pre;
+    overflow-x: auto;
+    resize: vertical;
+    outline: none;
     margin: 0;
-    font-size: 14px;
-    white-space: nowrap;
   }
-  .md-body th, .md-body td {
-    border: 1px solid #2c3142;
-    padding: 8px 12px;
-    text-align: left;
-    vertical-align: top;
-  }
-  .md-body th { background: #1d2230; color: #cfd5e3; font-weight: 600; }
-  .md-body td { background: #14171f; }
+  #mdOutput:focus { box-shadow: none; }
 
   /* ---------- 提示条 ---------- */
   .tpl-tip {
@@ -286,6 +346,7 @@
     .site-header .brand { font-size: 24px; }
     .form-row { grid-template-columns: 1fr; gap: 6px; }
     .actions .btn { flex: 1 1 100%; }
+    .submit-btn { font-size: 15px; padding: 13px 20px; }
   }
 </style>
 </head>
@@ -351,10 +412,34 @@
     <button type="button" class="btn" id="btnAddSlot">＋ 添加车位</button>
   </section>
 
-  <!-- 操作 -->
+  <!-- JSON 备份（次要） -->
   <div class="actions">
-    <button type="button" class="btn" id="btnDownload">下载 JSON 文件</button>
+    <button type="button" class="btn" id="btnDownload">下载 JSON（内部备份，请勿提交）</button>
   </div>
+
+  <!-- ★ 提交给裁判的 Markdown 输出 -->
+  <section class="card submit-card">
+    <h2 class="alt">⚠ 提交给裁判的文件</h2>
+    <div class="submit-warn">
+      <strong>只有下方生成的 Markdown 内容才是比赛需要提交给裁判的最终文件！</strong>
+      <br />
+      JSON 文件仅供内部数据备份，<strong>请勿提交给裁判</strong>。
+    </div>
+    <div class="actions">
+      <button type="button" class="btn submit-btn" id="btnGenerateMd">
+        ★ 生成 Markdown 提交文件
+      </button>
+    </div>
+    <div class="panel" id="mdPanel" hidden>
+      <div class="panel-head">
+        <span>Markdown 提交内容（复制后提交给裁判）</span>
+        <div class="btn-inline">
+          <button type="button" class="btn tiny" id="btnCopyMd">复制</button>
+        </div>
+      </div>
+      <textarea id="mdOutput" readonly spellcheck="false"></textarea>
+    </div>
+  </section>
 
   <footer class="foot">
     配置读取自 <code>config/available_matches</code> · =78D13=
@@ -386,7 +471,6 @@
     '日系': 'japan.json'
   };
 
-  // 比赛 JSON 里可识别的键名（大小写 / 空格 / 冒号 / 下划线都会被忽略）
   const FIELD_DEFS = [
     { key: 'teams',      aliases: ['队伍', '所属队伍', '队伍列表', '联队', '联队列表', 'teams', 'team'] },
     { key: 'maxSlots',   aliases: ['最大车位', '最大车位数', '车位数', '最多车位', '车位上限', 'maxslots', 'slots'] },
@@ -400,7 +484,6 @@
     { key: 'rounds',     aliases: ['比赛局数', '局数', 'rounds'] }
   ];
 
-  // 页面「本次比赛信息」的显示顺序
   const MATCH_FIELDS = [
     { key: 'mode',       label: '比赛模式' },
     { key: 'difficulty', label: '难度' },
@@ -536,7 +619,7 @@
   }
 
   /* =========================================================
-  *  比赛 JSON 解析
+   *  比赛 JSON 解析
    * ========================================================= */
 
   function findSeparator(line) {
@@ -571,7 +654,6 @@
 
     document.getElementById('maxSlotsHint').textContent = maxSlots;
 
-    // 若配置下发的上限比已存在的车位少，裁掉多余车位
     const exist = slotsEl.querySelectorAll('.slot').length;
     if (exist > maxSlots) {
       const all = slotsEl.querySelectorAll('.slot');
@@ -864,7 +946,7 @@
     head.appendChild(removeBtn);
     el.appendChild(head);
 
-    /* 主体：类型、等级、名称、挂载和权重 */
+    /* 主体：类型、等级、名称、挂载 */
     const grid = document.createElement('div');
     grid.className = 'slot-grid';
 
@@ -948,24 +1030,26 @@
       slots: slots
     };
   }
-  function validateForm(data) {
-  if (!data.nickname) return '请填写战雷游戏内昵称';
-  if (!data.gaijinId)  return '请搜索或填写玩家 ID';
-  if (!data.team)     return '请选择所属队伍';
-  if (!data.identity) return '请选择身份';
-  if (!data.techTree) return '请选择所用科技树';
 
-  for (let i = 0; i < data.slots.length; i++) {
-    const s = data.slots[i];
-    const n = i + 1;
-    if (!s.level) return '车位 ' + n + '：请选择载具等级';
-    if (!s.name)  return '车位 ' + n + '：请填写或选择载具名称';
-    if (s.type !== '地面载具' && s.type !== '水面载具' && !s.loadout) {
-      return '车位 ' + n + '：请填写载具挂载';
+  function validateForm(data) {
+    if (!data.nickname) return '请填写战雷游戏内昵称';
+    if (!data.gaijinId)  return '请搜索或填写玩家 ID';
+    if (!data.team)     return '请选择所属队伍';
+    if (!data.identity) return '请选择身份';
+    if (!data.techTree) return '请选择所用科技树';
+
+    for (let i = 0; i < data.slots.length; i++) {
+      const s = data.slots[i];
+      const n = i + 1;
+      if (!s.level) return '车位 ' + n + '：请选择载具等级';
+      if (!s.name)  return '车位 ' + n + '：请填写或选择载具名称';
+      if (s.type !== '地面载具' && s.type !== '水面载具' && !s.loadout) {
+        return '车位 ' + n + '：请填写载具挂载';
+      }
     }
+    return null;
   }
-  return null; // 校验通过
-  }
+
   /* =========================================================
    *  JSON 生成
    * ========================================================= */
@@ -975,29 +1059,99 @@
   }
 
   /* =========================================================
+   *  Markdown 生成（提交给裁判）
+   *
+   *  单行表格行，列顺序固定为：
+   *    昵称 | 玩家ID | 身份 | 队伍 | 科技树 | 车位1 | 车位2 | ... | 车位N
+   *  每个车位单元格内容：
+   *    载具类型 / 载具等级 / 载具名称 / 载具挂载（地面/水面无挂载）
+   *  空车位留空，按 maxSlots 补齐，保证列数一致。
+   * ========================================================= */
+
+  function mdCell(v) {
+    if (v === undefined || v === null) return '';
+    return String(v).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+  }
+
+  function buildMarkdown(data) {
+    const cells = [
+      data.nickname,
+      data.gaijinId,
+      data.identity,
+      data.team,
+      data.techTree
+    ];
+
+    for (let i = 0; i < maxSlots; i++) {
+      const s = data.slots[i];
+      if (!s) { cells.push(''); continue; }
+
+      const parts = [s.type, s.level, s.name];
+      if (s.loadout) parts.push(s.loadout);
+      cells.push(parts.join(' / '));
+    }
+
+    return '| ' + cells.map(mdCell).join(' | ') + ' |';
+  }
+
+  /* =========================================================
    *  按钮行为
    * ========================================================= */
 
-function onDownload() {
-  const data = collectData();
-  const err = validateForm(data);
-  if (err) { alert(err); return; }
+  /* JSON 备份（内部使用） */
+  function onDownload() {
+    const data = collectData();
+    const err = validateForm(data);
+    if (err) { alert(err); return; }
 
-  const blob = new Blob([buildJson(data)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = (data.nickname || 'player-info') + '.json';
-  link.click();
-  URL.revokeObjectURL(url);
-}
+    const blob = new Blob([buildJson(data)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = (data.nickname || 'player-info') + '.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* 生成 Markdown 提交文件 */
+  function onGenerateMd() {
+    const data = collectData();
+    const err = validateForm(data);
+    if (err) { alert(err); return; }
+
+    document.getElementById('mdOutput').value = buildMarkdown(data);
+
+    const panel = document.getElementById('mdPanel');
+    panel.hidden = false;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  /* 复制 Markdown */
+  async function onCopyMd() {
+    const ta = document.getElementById('mdOutput');
+    if (!ta.value) { alert('请先生成 Markdown 提交文件'); return; }
+
+    try {
+      await navigator.clipboard.writeText(ta.value);
+    } catch (e) {
+      ta.removeAttribute('readonly');
+      ta.select();
+      try { document.execCommand('copy'); } catch (e2) { /* 忽略 */ }
+      ta.setAttribute('readonly', 'readonly');
+    }
+
+    const btn = document.getElementById('btnCopyMd');
+    const old = btn.textContent;
+    btn.textContent = '已复制 ✓';
+    setTimeout(function () { btn.textContent = old; }, 1500);
+  }
 
   /* =========================================================
    *  初始化
    * ========================================================= */
 
   function init() {
-    // 科技树下拉
+    /* 科技树下拉 */
     const techSel = document.getElementById('techTree');
     const ph = document.createElement('option');
     ph.value = '';
@@ -1012,16 +1166,20 @@ function onDownload() {
     });
     techSel.addEventListener('change', function () { loadVehicleCatalog(techSel.value); });
 
-    // 初始车位（默认一个）
+    /* 初始车位 */
     slotsEl.appendChild(createSlot());
     renumberSlots();
 
-    // 按钮绑定
+    /* 按钮绑定 */
     document.getElementById('btnAddSlot').addEventListener('click', addSlot);
     document.getElementById('btnSearchId').addEventListener('click', searchPlayerId);
     document.getElementById('btnDownload').addEventListener('click', onDownload);
 
-    // 从 config/available_matches 读取比赛列表和比赛配置
+    /* Markdown 提交相关 */
+    document.getElementById('btnGenerateMd').addEventListener('click', onGenerateMd);
+    document.getElementById('btnCopyMd').addEventListener('click', onCopyMd);
+
+    /* 读取配置与数据 */
     loadConfig();
     loadMembers();
     loadVehicleCatalog(techSel.value);
