@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""把 MySQL 成员表同步到 members.csv（基于 PyMySQL）。
+"""根据 MySQL 成员表更新 members.csv（基于 PyMySQL）。
 
 数据库地址、端口、账号、密码、库名全部通过命令行参数指定；目标表默认 members，
 字段与 CSV 表头保持一致（gaijin_id / name / state / join_date / landforce / airforce / navy），
-数据库是唯一数据来源，导出结果会覆盖 CSV；数据库中已不存在的成员会从 CSV 移除。
+数据库是成员数据来源；已有主键会更新，删除标记非空的记录不会写入 CSV。
 
 用法：
 
@@ -34,6 +34,16 @@ DATE_PATTERNS = ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d")
 ENCODING_CANDIDATES = ("utf-8-sig", "gb18030", "big5")
 DATE_TYPES = ("date", "datetime", "timestamp")
 TEXT_LIMIT = 64 if False else 255
+DELETE_FIELD_NAMES = (
+    "delete",
+    "deleted",
+    "deletion",
+    "delete_record",
+    "deleted_at",
+    "delete_time",
+    "删除",
+    "删除记录",
+)
 
 
 def decode_text(raw: bytes, encoding: str | None) -> str:
@@ -137,10 +147,19 @@ def fetch_columns(cursor: Any, database: str, table: str) -> dict[str, str]:
     return {row["COLUMN_NAME"]: row["COLUMN_TYPE"].lower() for row in cursor.fetchall()}
 
 
-def fetch_members(cursor: Any, table: str) -> list[dict[str, Any]]:
-    """按 CSV 字段顺序读取数据库中的全部成员。"""
+def fetch_members(
+    cursor: Any,
+    table: str,
+    columns: dict[str, str],
+) -> list[dict[str, Any]]:
+    """读取未标记删除的成员；数据库结果用于新增和更新 CSV 记录。"""
     column_list = ", ".join(f"`{field}`" for field in CSV_HEADERS)
-    cursor.execute(f"SELECT {column_list} FROM `{table}` ORDER BY `{KEY_FIELD}`")
+    delete_field = find_delete_field(columns)
+    where_clause = f" WHERE `{delete_field}` IS NULL" if delete_field else ""
+    cursor.execute(
+        f"SELECT {column_list} FROM `{table}`{where_clause} "
+        f"ORDER BY `{KEY_FIELD}`"
+    )
     return list(cursor.fetchall())
 
 
@@ -243,8 +262,55 @@ def upsert(cursor: Any, table: str, headers: list[str], rows: list[dict[str, str
     return cursor.executemany(sql, build_payload(headers, rows, columns))
 
 
+def find_delete_field(fields: list[str] | dict[str, str]) -> str | None:
+    """查找删除标记字段；字段不存在时不执行删除操作。"""
+    available = list(fields)
+    normalized = {field.casefold(): field for field in available}
+    for name in DELETE_FIELD_NAMES:
+        if name.casefold() in normalized:
+            return normalized[name.casefold()]
+    return next(
+        (
+            field
+            for field in available
+            if "delete" in field.casefold() or "删除" in field
+        ),
+        None,
+    )
+
+
+def delete_marked_members(
+    cursor: Any,
+    table: str,
+    source_delete_field: str | None,
+    database_delete_field: str | None,
+    rows: list[dict[str, str]],
+) -> tuple[int, set[str]]:
+    """删除删除标记非空的数据库记录，并返回已删除的主键。"""
+    deleted_ids = {
+        row[KEY_FIELD].strip()
+        for row in rows
+        if source_delete_field and row.get(source_delete_field, "").strip()
+    }
+    if database_delete_field:
+        cursor.execute(
+            f"SELECT `{KEY_FIELD}` FROM `{table}` "
+            f"WHERE `{database_delete_field}` IS NOT NULL"
+        )
+        deleted_ids.update(str(row[KEY_FIELD]) for row in cursor.fetchall())
+    if not deleted_ids:
+        return 0, deleted_ids
+
+    placeholders = ", ".join(["%s"] * len(deleted_ids))
+    cursor.execute(
+        f"DELETE FROM `{table}` WHERE `{KEY_FIELD}` IN ({placeholders})",
+        tuple(deleted_ids),
+    )
+    return cursor.rowcount, deleted_ids
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="将 MySQL 成员表同步到 members.csv")
+    parser = argparse.ArgumentParser(description="根据 MySQL 成员表更新 members.csv")
     parser.add_argument("--host", default="127.0.0.1", help="数据库地址，默认 127.0.0.1")
     parser.add_argument("-P","--port", type=int, default=3306, help="数据库端口，默认 3306")
     parser.add_argument("-u","--user", required=True, help="数据库用户名")
@@ -273,7 +339,7 @@ def main() -> int:
                 missing = [field for field in CSV_HEADERS if field not in columns]
                 if missing:
                     raise ValueError(f"数据表 {args.table} 缺少字段：{', '.join(missing)}")
-                rows = fetch_members(cursor, args.table)
+                rows = fetch_members(cursor, args.table, columns)
         if not args.dry_run:
             write_members(args.csv, rows)
     except (OSError, ValueError, pymysql.err.Error) as exc:
@@ -283,9 +349,9 @@ def main() -> int:
     print(f"CSV：{args.csv}（{len(rows)} 行，字段：{', '.join(CSV_HEADERS)}）")
     print(f"目标：{args.user}@{args.host}:{args.port}/{args.database}.{args.table}")
     if args.dry_run:
-        print(f"读取完成：数据库中有 {len(rows)} 行（--dry-run 未修改 CSV）")
+        print(f"读取完成：SQL 返回 {len(rows)} 行（--dry-run 未修改 CSV）")
     else:
-        print(f"同步完成：已用数据库内容覆盖 {args.csv}")
+        print(f"同步完成：已有记录已更新，删除标记非空的记录已从 CSV 移除")
     return 0
 
 

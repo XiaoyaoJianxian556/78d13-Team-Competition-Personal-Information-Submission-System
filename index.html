@@ -177,6 +177,32 @@
     font-size: 12px;
     color: #8b93a7;
   }
+  .member-summary {
+    display: grid;
+    grid-template-columns: minmax(170px, 1fr) minmax(140px, .8fr) minmax(280px, 1.5fr);
+    gap: 8px;
+  }
+  .member-info {
+    padding: 8px 10px;
+    background: #12151d;
+    border: 1px solid #2c3142;
+    border-radius: 6px;
+    color: #a8b0c2;
+    font-size: 12px;
+    line-height: 1.8;
+    min-height: 42px;
+  }
+  .member-info .member-info-label {
+    display: block;
+    color: #8b93a7;
+    font-size: 11px;
+    line-height: 1.2;
+    margin-bottom: 2px;
+  }
+  .member-info[hidden] { display: none; }
+  .member-info strong { color: #e6e8ee; }
+  .qualification-certified { color: #75d69c; }
+  .qualification-uncertified { color: #ffab7a; }
 
   input, select, textarea {
     width: 100%;
@@ -345,6 +371,7 @@
   @media (max-width: 560px) {
     .site-header .brand { font-size: 24px; }
     .form-row { grid-template-columns: 1fr; gap: 6px; }
+    .member-summary { grid-template-columns: 1fr; }
     .actions .btn { flex: 1 1 100%; }
     .submit-btn { font-size: 15px; padding: 13px 20px; }
   }
@@ -385,7 +412,11 @@
     </div>
     <div class="form-row">
       <label for="gaijinId">玩家 ID</label>
-      <input id="gaijinId" type="text" placeholder="搜索不到时请手动输入" inputmode="numeric" autocomplete="off" />
+      <div class="member-summary">
+        <input id="gaijinId" type="text" placeholder="搜索不到时请手动输入" inputmode="numeric" autocomplete="off" />
+        <div class="member-info" id="memberType" aria-live="polite"></div>
+        <div class="member-info" id="memberQualification" aria-live="polite"></div>
+      </div>
     </div>
     <div class="form-row">
       <label for="team">所属队伍</label>
@@ -413,7 +444,7 @@
   </section>
 
   <!-- JSON 备份（次要） -->
-  <div class="actions">
+  <div class="actions" hidden>
     <button type="button" class="btn" id="btnDownload">下载 JSON（内部备份，请勿提交）</button>
   </div>
 
@@ -496,6 +527,15 @@
   ];
 
   const DEFAULT_MAX_SLOTS = 5;
+  const MEMBER_STATE_LABELS = {
+    N: '新兵',
+    F: '正式队员',
+    C: '领队'
+  };
+  const QUALIFICATION_LABELS = {
+    Certified: '认证',
+    Uncertified: '未认证'
+  };
 
   /* =========================================================
    *  状态
@@ -567,7 +607,14 @@
 
     return lines.slice(1).map(function (line) {
       const cells = parseCsvLine(line);
-      return { id: cells[idIndex] || '', name: cells[nameIndex] || '' };
+      return {
+        id: cells[idIndex] || '',
+        name: cells[nameIndex] || '',
+        state: cells[headers.indexOf('state')] || '',
+        landforce: cells[headers.indexOf('landforce')] || '',
+        airforce: cells[headers.indexOf('airforce')] || '',
+        navy: cells[headers.indexOf('navy')] || ''
+      };
     }).filter(function (member) { return member.id && member.name; });
   }
 
@@ -590,6 +637,66 @@
     }
   }
 
+  function renderMemberInfo(member) {
+    const typeInfo = document.getElementById('memberType');
+    const qualificationInfo = document.getElementById('memberQualification');
+    if (!member) {
+      typeInfo.textContent = '';
+      const typeLabel = document.createElement('span');
+      typeLabel.className = 'member-info-label';
+      typeLabel.textContent = '队员类型';
+      typeInfo.appendChild(typeLabel);
+      typeInfo.appendChild(document.createTextNode('请输入或搜索玩家 ID'));
+
+      qualificationInfo.textContent = '';
+      const qualificationLabel = document.createElement('span');
+      qualificationLabel.className = 'member-info-label';
+      qualificationLabel.textContent = '资格认证';
+      qualificationInfo.appendChild(qualificationLabel);
+      qualificationInfo.appendChild(document.createTextNode('请输入或搜索玩家 ID'));
+      return;
+    }
+
+    typeInfo.hidden = false;
+    typeInfo.textContent = '';
+    const typeLabel = document.createElement('span');
+    typeLabel.className = 'member-info-label';
+    typeLabel.textContent = '队员类型';
+    typeInfo.appendChild(typeLabel);
+    typeInfo.appendChild(document.createTextNode(
+      member.state
+        ? member.state + '：' + (MEMBER_STATE_LABELS[member.state] || '未知')
+        : '未知'
+    ));
+
+    qualificationInfo.hidden = false;
+    qualificationInfo.textContent = '';
+    const qualificationLabel = document.createElement('span');
+    qualificationLabel.className = 'member-info-label';
+    qualificationLabel.textContent = '资格认证';
+    qualificationInfo.appendChild(qualificationLabel);
+    [
+      ['空军', member.airforce],
+      ['陆军', member.landforce],
+      ['海军', member.navy]
+    ].forEach(function (item, index) {
+      if (index > 0) qualificationInfo.appendChild(document.createTextNode(' · '));
+      const status = document.createElement('span');
+      const certified = item[1] === 'Certified';
+      status.className = certified ? 'qualification-certified' : 'qualification-uncertified';
+      status.textContent = item[0] + ' ' + (QUALIFICATION_LABELS[item[1]] || item[1] || '未知');
+      qualificationInfo.appendChild(status);
+    });
+  }
+
+  function showMemberInfoById(id) {
+    const value = String(id || '').trim();
+    const matched = value ? members.find(function (member) {
+      return member.id === value;
+    }) : null;
+    renderMemberInfo(matched);
+  }
+
   function searchPlayerId() {
     const nickname = document.getElementById('nickname').value.trim();
     const idInput = document.getElementById('gaijinId');
@@ -610,11 +717,13 @@
     if (matched) {
       idInput.value = matched.id;
       status.textContent = '已找到玩家 ID';
+      renderMemberInfo(matched);
       return;
     }
 
     idInput.value = '';
     status.textContent = '未找到该昵称，请自行输入玩家 ID';
+    renderMemberInfo(null);
     idInput.focus();
   }
 
@@ -1153,6 +1262,8 @@
    * ========================================================= */
 
   function init() {
+    renderMemberInfo(null);
+
     /* 科技树下拉 */
     const techSel = document.getElementById('techTree');
     const ph = document.createElement('option');
@@ -1175,6 +1286,9 @@
     /* 按钮绑定 */
     document.getElementById('btnAddSlot').addEventListener('click', addSlot);
     document.getElementById('btnSearchId').addEventListener('click', searchPlayerId);
+    document.getElementById('gaijinId').addEventListener('input', function (event) {
+      showMemberInfoById(event.target.value);
+    });
     document.getElementById('btnDownload').addEventListener('click', onDownload);
 
     /* Markdown 提交相关 */
